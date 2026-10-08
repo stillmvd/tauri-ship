@@ -1,0 +1,35 @@
+{
+  "name": "@stillmvd/tauri-ship",
+  "version": "0.1.0",
+  "description": "One way to release and update Tauri 2 apps on Windows: local signed build, background GitHub publish, in-app toast",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./ship.css": "./ship.css"
+  },
+  "bin": {
+    "ship": "./cli/ship.mjs"
+  },
+  "files": ["dist", "cli", "nsis", "ship.css"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --test cli/lib.test.mjs && cargo test --manifest-path crate/Cargo.toml",
+    "check": "tsc -p tsconfig.json --noEmit && node --test cli/lib.test.mjs && cargo clippy --manifest-path crate/Cargo.toml --all-targets -- -D warnings && cargo test --manifest-path crate/Cargo.toml"
+  },
+  "peerDependencies": {
+    "@tauri-apps/api": "^2",
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "@tauri-apps/api": "^2.12.0",
+    "@types/react": "^19.3.0",
+    "react": "^19.3.0",
+    "typescript": "~7.0.2"
+  }
+}

@@ -1,0 +1,3 @@
+node_modules/
+crate/target/
+crate/Cargo.lock

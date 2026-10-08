@@ -1,0 +1,8 @@
+tag: tauri-cli-v2.11.5
+bundler: 2.9.4
+source: https://raw.githubusercontent.com/tauri-apps/tauri/tauri-cli-v2.11.5/crates/tauri-bundler/src/bundle/windows/nsis/installer.nsi
+sha256: 20f4ecc730defb71f1342eaeaec4021df13be3d843abba0effe88ea5835fa079
+changes:
+  - .onInit: $PassiveMode всегда 1 (установщик без мастера, только прогресс)
+  - .onInstSuccess: запуск приложения после установки без флага /R
+При обновлении @tauri-apps/cli скачать шаблон нового тега, перенести две правки, обновить sha256.
