@@ -1,6 +1,6 @@
 [package]
 name = "tauri-plugin-ship"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Background update checks, downloads and one-click install for Tauri 2 apps on Windows"
 license = "MIT"

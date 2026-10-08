@@ -63,7 +63,7 @@ function context() {
     name,
     product,
     tauriDir,
-    exe: `${conf.mainBinaryName ?? product}.exe`,
+    exe: `${conf.mainBinaryName ?? lib.cargoName(readFileSync(join(tauriDir, 'Cargo.toml'), 'utf8')) ?? product}.exe`,
     repo: lib.repoFromEndpoint(conf.plugins?.updater?.endpoints?.[0]),
     key: join(homedir(), '.tauri', `${name}.key`),
     stateDir: join(process.env.LOCALAPPDATA ?? join(homedir(), 'AppData', 'Local'), 'ship', name),
@@ -286,7 +286,7 @@ function installLocally(ctx, exePath) {
       return;
     }
   }
-  const ps = `$p = Start-Process -FilePath '${exePath.replaceAll("'", "''")}' -ArgumentList '/P' -Verb RunAs -Wait -PassThru; exit $p.ExitCode`;
+  const ps = `$p = Start-Process -FilePath '${exePath.replaceAll("'", "''")}' -ArgumentList '/P' -Verb RunAs -PassThru; $p.WaitForExit(); exit $p.ExitCode`;
   const r = sh('powershell', ['-NoProfile', '-Command', ps], { capture: true, allowFail: true });
   if (r.status === 0) console.log(`  установлено, ${ctx.product} запускается`);
   else console.log(`  не установилось (UAC отклонён?) — установщик: ${exePath}\n  ${r.stderr}`);

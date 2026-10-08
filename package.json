@@ -1,6 +1,6 @@
 {
   "name": "@stillmvd/tauri-ship",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "One way to release and update Tauri 2 apps on Windows: local signed build, background GitHub publish, in-app toast",
   "license": "MIT",
   "type": "module",
