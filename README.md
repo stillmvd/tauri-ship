@@ -44,7 +44,7 @@
 
 ## Рамки
 
-- Пользователи: автор и Настя (2 машины). Authenticode нет, SmartScreen при первой установке терпим.
+- Пользователь ПК-приложений — автор (одна машина). Authenticode нет, SmartScreen при первой установке терпим.
 - Приложения: Booked, Cache Out, Echo Studio, Markdown, Sorter, Trail, Waypoint. Click It, Folderize, Link Gate — вне рамок.
 - Темп: пару релизов в неделю. Хостинг: публичные GitHub Releases, `tauri-plugin-updater`, endpoint `…/releases/latest/download/latest.json`.
 - Установка: NSIS perMachine (Program Files), **installMode `passive` везде** — `quiet` + perMachine не может поднять права и молча не ставится `[A1]`. UAC на обновление принят.
@@ -92,9 +92,9 @@
 ## Миграция
 
 1. Выровнять tauri во всех приложениях; забэкапить ключи.
-2. Создать `tauri-ship`, пилот — Echo Studio: `ship release` на реальной версии, проверить у себя и у Насти.
+2. Создать `tauri-ship`, пилот — Echo Studio: `ship release` на реальной версии.
 3. Только после успешного пилота в приложении — удалить его `release.yml` и секрет `TAURI_SIGNING_PRIVATE_KEY` `[A11]`.
 4. Порядок остальных: Booked, Trail, Cache Out, Markdown, Sorter, Waypoint.
-5. Sorter, Markdown (сейчас `quiet`): старые установленные версии ставят обновление своим `quiet` и могут не встать — **первое обновление на новую версию поставить вручную** на обеих машинах `[A1, A19]`.
+5. Cache Out, Markdown, Sorter (сейчас `quiet`): старый апдейтер может не поставить обновление `[A1, A19]` — первую новую версию ставит себе сам `pnpm release`.
 6. Sorter, Cache Out: убрать литерал версии из `tauri.conf.json`.
-7. Waypoint: свой `release.mjs` остаётся (APK, составной тег, отдельный `waypoint-releases`), `ship` вызывается из него только для сборки/подписи/`latest.json`/публикации ПК-части `[A9]`.
+7. Waypoint: свой `release.mjs` остаётся (APK, составной тег, отдельный `waypoint-releases`, из него обновляется Android) — переводится только приложение (плагин, тост, passive); CLI `ship` не используется `[A9]`.
