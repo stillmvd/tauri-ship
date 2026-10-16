@@ -280,11 +280,7 @@ function isRunning(exe) {
 function installLocally(ctx, exePath) {
   if (isRunning(ctx.exe)) {
     sh('taskkill', ['/IM', ctx.exe], { capture: true, allowFail: true });
-    for (let i = 0; i < 30 && isRunning(ctx.exe); i++) sleep(500);
-    if (isRunning(ctx.exe)) {
-      console.log(`  ${ctx.exe} не закрылся сам (свёрнут в трей?). Закройте его и запустите:\n  ${exePath}`);
-      return;
-    }
+    for (let i = 0; i < 10 && isRunning(ctx.exe); i++) sleep(500);
   }
   const ps = `$p = Start-Process -FilePath '${exePath.replaceAll("'", "''")}' -ArgumentList '/P' -Verb RunAs -PassThru; $p.WaitForExit(); exit $p.ExitCode`;
   const r = sh('powershell', ['-NoProfile', '-Command', ps], { capture: true, allowFail: true });
