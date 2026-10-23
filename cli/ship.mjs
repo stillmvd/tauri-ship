@@ -282,7 +282,10 @@ function installLocally(ctx, exePath) {
     sh('taskkill', ['/IM', ctx.exe], { capture: true, allowFail: true });
     for (let i = 0; i < 10 && isRunning(ctx.exe); i++) sleep(500);
   }
-  const ps = `$p = Start-Process -FilePath '${exePath.replaceAll("'", "''")}' -ArgumentList '/P' -Verb RunAs -PassThru; $p.WaitForExit(); exit $p.ExitCode`;
+  const programs = join(process.env.ProgramData ?? 'C:\\ProgramData', 'Microsoft', 'Windows', 'Start Menu', 'Programs');
+  const shortcut = join(programs, ctx.conf.bundle?.windows?.nsis?.startMenuFolder ?? '', `${ctx.product}.lnk`);
+  const args = existsSync(shortcut) ? "'/P','/UPDATE'" : "'/P'";
+  const ps = `$p = Start-Process -FilePath '${exePath.replaceAll("'", "''")}' -ArgumentList ${args} -Verb RunAs -PassThru; $p.WaitForExit(); exit $p.ExitCode`;
   const r = sh('powershell', ['-NoProfile', '-Command', ps], { capture: true, allowFail: true });
   if (r.status === 0) console.log(`  установлено, ${ctx.product} запускается`);
   else console.log(`  не установилось (UAC отклонён?) — установщик: ${exePath}\n  ${r.stderr}`);
