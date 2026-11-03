@@ -64,6 +64,7 @@ function context() {
     product,
     tauriDir,
     exe: `${conf.mainBinaryName ?? lib.cargoName(readFileSync(join(tauriDir, 'Cargo.toml'), 'utf8')) ?? product}.exe`,
+    local: !conf.plugins?.updater,
     repo: lib.repoFromEndpoint(conf.plugins?.updater?.endpoints?.[0]),
     key: join(homedir(), '.tauri', `${name}.key`),
     stateDir: join(process.env.LOCALAPPDATA ?? join(homedir(), 'AppData', 'Local'), 'ship', name),
@@ -93,11 +94,11 @@ function doctor(ctx) {
   const cargoVersion = cargoText.match(/\[package\][\s\S]*?\nversion\s*=\s*"([^"]+)"/)?.[1];
   if (cargoVersion !== pkg.version) errors.push(`Cargo.toml: версия ${cargoVersion}, в package.json ${pkg.version}`);
   if (/crate-type\s*=\s*\[[^\]]*"(staticlib|cdylib)"/.test(cargoText)) {
-    warnings.push('Cargo.toml: crate-type с staticlib/cdylib нужен только для мобильных сборок — на Windows это ~1 ГБ .lib на каждую сборку; оставьте ["rlib"]');
+    warnings.push('Cargo.toml: crate-type с staticlib/cdylib нужен только для мобильных сборок — на Windows это ~1 ГБ .lib на каждую сборку; оставь ["rlib"]');
   }
 
   const bundle = conf.bundle ?? {};
-  if (bundle.createUpdaterArtifacts !== true) errors.push('tauri.conf.json: bundle.createUpdaterArtifacts должен быть true');
+  if (!ctx.local && bundle.createUpdaterArtifacts !== true) errors.push('tauri.conf.json: bundle.createUpdaterArtifacts должен быть true');
   if (!(bundle.targets === 'all' || (Array.isArray(bundle.targets) && bundle.targets.includes('nsis')))) {
     errors.push('tauri.conf.json: bundle.targets должен включать "nsis"');
   }
@@ -110,11 +111,15 @@ function doctor(ctx) {
   }
 
   const updater = conf.plugins?.updater;
-  if (updater?.windows?.installMode !== 'passive') {
-    errors.push('tauri.conf.json: plugins.updater.windows.installMode должен быть "passive" — quiet при perMachine не поднимает права, обновление молча не ставится');
+  if (ctx.local) {
+    warnings.push('локальный режим (нет plugins.updater): релиз без подписи и публикации — только тег, отправка в origin и установка себе');
+  } else {
+    if (updater?.windows?.installMode !== 'passive') {
+      errors.push('tauri.conf.json: plugins.updater.windows.installMode должен быть "passive" — quiet при perMachine не поднимает права, обновление молча не ставится');
+    }
+    if (!updater?.pubkey) errors.push('tauri.conf.json: нет plugins.updater.pubkey');
+    if (!ctx.repo) errors.push('tauri.conf.json: endpoint должен быть https://github.com/<owner>/<repo>/releases/latest/download/latest.json');
   }
-  if (!updater?.pubkey) errors.push('tauri.conf.json: нет plugins.updater.pubkey');
-  if (!ctx.repo) errors.push('tauri.conf.json: endpoint должен быть https://github.com/<owner>/<repo>/releases/latest/download/latest.json');
 
   const upstream = readFileSync(join(PKG_DIR, 'nsis', 'UPSTREAM'), 'utf8').match(/tag: tauri-cli-v(\S+)/)?.[1];
   const cli = readJson(join(ROOT, 'node_modules', '@tauri-apps', 'cli', 'package.json'))?.version;
@@ -127,10 +132,11 @@ function doctor(ctx) {
     errors.push(`crate tauri ${crate} и @tauri-apps/api ${api} — разные minor, tauri build упадёт`);
   }
 
+  if (ctx.local) return { errors, warnings };
   if (!existsSync(ctx.key)) {
     errors.push(`нет ключа подписи ${ctx.key}`);
   } else if (!existsSync(BACKUP_MARK) || statSync(BACKUP_MARK).mtimeMs < statSync(ctx.key).mtimeMs) {
-    warnings.push(`ключ ${ctx.key} не отмечен как сохранённый — положите его в менеджер паролей и выполните: pnpm ship backup-ok`);
+    warnings.push(`ключ ${ctx.key} не отмечен как сохранённый — положи его в менеджер паролей и выполни: pnpm ship backup-ok`);
   }
   if (sh('gh', ['auth', 'status'], { capture: true, allowFail: true }).status !== 0) errors.push('gh не авторизован: gh auth login');
   return { errors, warnings };
@@ -179,9 +185,9 @@ async function release(ctx) {
   step('Проверка конфигурации');
   const report = doctor(ctx);
   printDoctor(report);
-  if (report.errors.length) fail('исправьте конфигурацию — pnpm ship doctor');
+  if (report.errors.length) fail('исправь конфигурацию — pnpm ship doctor');
 
-  const previous = readState(ctx);
+  const previous = ctx.local ? null : readState(ctx);
   if (previous && previous.status !== 'published') {
     fail(`${previous.version} ещё не опубликован (${previous.status}) — pnpm ship publish, подробности: pnpm ship status`);
   }
@@ -201,7 +207,11 @@ async function release(ctx) {
   const why = next.because;
   console.log(`\n${ctx.product}: ${ctx.pkg.version} → ${version}  (${next.bump}: ${why.type}${why.scope ? `(${why.scope})` : ''}: ${why.subject})`);
   console.log(`Коммитов: ${commits.length}. Что нового:\n${notes.replace(/^/gm, '  ')}`);
-  console.log('Дальше: проверки → сборка → коммит и тег → публикация в фоне → установка себе.');
+  console.log(
+    ctx.local
+      ? 'Дальше: проверки → сборка → коммит и тег → отправка в origin → установка себе (локальный режим, без публикации).'
+      : 'Дальше: проверки → сборка → коммит и тег → публикация в фоне → установка себе.',
+  );
   if (!flag('yes') && !(await confirm('Выпускаем?'))) return;
 
   step('Проверки проекта (pnpm run check)');
@@ -212,12 +222,18 @@ async function release(ctx) {
   const nsisDir = join(ctx.tauriDir, 'target', 'release', 'bundle', 'nsis');
   const exePath = join(nsisDir, `${ctx.product}_${version}_x64-setup.exe`);
   try {
-    step('Сборка и подпись (pnpm tauri build)');
-    sh('pnpm tauri build', [], {
-      shell: true,
-      env: { TAURI_SIGNING_PRIVATE_KEY: readFileSync(ctx.key, 'utf8'), TAURI_SIGNING_PRIVATE_KEY_PASSWORD: '' },
-    });
-    if (!existsSync(exePath) || !existsSync(`${exePath}.sig`)) fail(`сборка не создала ${exePath} и .sig`);
+    if (ctx.local) {
+      step('Сборка (pnpm tauri build)');
+      sh('pnpm tauri build', [], { shell: true });
+      if (!existsSync(exePath)) fail(`сборка не создала ${exePath}`);
+    } else {
+      step('Сборка и подпись (pnpm tauri build)');
+      sh('pnpm tauri build', [], {
+        shell: true,
+        env: { TAURI_SIGNING_PRIVATE_KEY: readFileSync(ctx.key, 'utf8'), TAURI_SIGNING_PRIVATE_KEY_PASSWORD: '' },
+      });
+      if (!existsSync(exePath) || !existsSync(`${exePath}.sig`)) fail(`сборка не создала ${exePath} и .sig`);
+    }
   } catch (e) {
     sh('git', ['checkout', '--', ...VERSION_FILES], { allowFail: true });
     console.log('  версия откачена, дерево снова чистое');
@@ -229,6 +245,15 @@ async function release(ctx) {
   sh('git', ['commit', '-m', `chore(release): ${version}`]);
   sh('git', ['tag', tag]);
   const sha = git(['rev-parse', 'HEAD']);
+
+  if (ctx.local) {
+    step('Отправка в origin');
+    const pushed = sh('git', ['push', 'origin', `${sha}:refs/heads/main`, `refs/tags/${tag}`], { capture: true, allowFail: true });
+    console.log(pushed.status === 0 ? `  ${tag} в origin` : `  не отправилось — позже: git push origin main ${tag}\n  ${pushed.stderr}`);
+    step('Установка себе');
+    installLocally(ctx, exePath);
+    return;
+  }
 
   const dir = join(ctx.stateDir, tag);
   mkdirSync(dir, { recursive: true });
@@ -386,7 +411,7 @@ function status(ctx) {
     failed: 'публикация упала',
   }[st.status];
   console.log(`${st.product} ${st.version}: ${label}`);
-  if (st.status !== 'published') console.log(`  у вас может стоять неопубликованная ${st.version}; дозалить: pnpm ship publish`);
+  if (st.status !== 'published') console.log(`  у тебя может стоять неопубликованная ${st.version}; дозалить: pnpm ship publish`);
   if (st.error) console.log(`  ошибка: ${st.error}`);
   const log = join(ctx.stateDir, 'publish.log');
   if (existsSync(log)) console.log(`  лог: ${log}\n${readFileSync(log, 'utf8').trim().split('\n').slice(-5).join('\n').replace(/^/gm, '    ')}`);

@@ -20,6 +20,10 @@
 6. Ключ подписи — `~/.tauri/<name из package.json>.key`; сохранить в менеджер паролей и `pnpm ship backup-ok`.
 7. `pnpm ship doctor` — всё зелёное. После первого успешного `pnpm release` удалить `.github/workflows/release.yml` и секреты `TAURI_SIGNING_PRIVATE_KEY*`.
 
+## Локальный режим (приватный репо)
+
+Если в `tauri.conf.json` нет блока `plugins.updater`, `ship` работает локально: без ключа подписи, `gh`, `latest.json` и фоновой публикации. Нужны только `"version": "../package.json"`, `installMode: "perMachine"` и шаблон NSIS из пакета; плагины `tauri-plugin-ship`/`updater` и тост не подключаются. `pnpm release`: проверки → версия по коммитам → сборка → коммит `chore(release)` и тег → отправка коммита и тега в `origin` → установка себе в Program Files через UAC. Обновление — следующий `pnpm release`.
+
 ## Команды
 
 | Команда | Что делает |
