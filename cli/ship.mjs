@@ -92,6 +92,9 @@ function doctor(ctx) {
   if (conf.version !== '../package.json') errors.push('tauri.conf.json: "version" должен быть "../package.json" — версия живёт в одном месте');
   const cargoVersion = cargoText.match(/\[package\][\s\S]*?\nversion\s*=\s*"([^"]+)"/)?.[1];
   if (cargoVersion !== pkg.version) errors.push(`Cargo.toml: версия ${cargoVersion}, в package.json ${pkg.version}`);
+  if (/crate-type\s*=\s*\[[^\]]*"(staticlib|cdylib)"/.test(cargoText)) {
+    warnings.push('Cargo.toml: crate-type с staticlib/cdylib нужен только для мобильных сборок — на Windows это ~1 ГБ .lib на каждую сборку; оставьте ["rlib"]');
+  }
 
   const bundle = conf.bundle ?? {};
   if (bundle.createUpdaterArtifacts !== true) errors.push('tauri.conf.json: bundle.createUpdaterArtifacts должен быть true');
