@@ -1,6 +1,18 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
-import { closeSync, copyFileSync, existsSync, mkdirSync, openSync, readFileSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import {
+  closeSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
@@ -252,6 +264,7 @@ async function release(ctx) {
     console.log(pushed.status === 0 ? `  ${tag} в origin` : `  не отправилось — позже: git push origin main ${tag}\n  ${pushed.stderr}`);
     step('Установка себе');
     installLocally(ctx, exePath);
+    pruneBuild(ctx);
     return;
   }
 
@@ -285,6 +298,41 @@ async function release(ctx) {
 
   step('Установка себе');
   installLocally(ctx, exePath);
+  pruneBuild(ctx);
+}
+
+function folderSize(path) {
+  let total = 0;
+  for (const entry of readdirSync(path, { recursive: true, withFileTypes: true })) {
+    if (!entry.isFile()) continue;
+    try {
+      total += statSync(join(entry.parentPath, entry.name)).size;
+    } catch {}
+  }
+  return total;
+}
+
+function pruneBuild(ctx) {
+  step('Уборка кешей сборки');
+  const target = process.env.CARGO_TARGET_DIR ? resolve(ROOT, process.env.CARGO_TARGET_DIR) : join(ctx.tauriDir, 'target');
+  const release = join(target, 'release');
+  const victims = [
+    ...(existsSync(release) ? readdirSync(release).filter((name) => name !== 'bundle').map((name) => join(release, name)) : []),
+    join(target, 'debug', 'incremental'),
+  ].filter((path) => existsSync(path));
+  let freed = 0;
+  let stuck = 0;
+  for (const path of victims) {
+    const size = statSync(path).isDirectory() ? folderSize(path) : statSync(path).size;
+    try {
+      rmSync(path, { recursive: true, force: true, maxRetries: 2 });
+      freed += size;
+    } catch {
+      stuck += 1;
+    }
+  }
+  if (!victims.length) console.log('  чистить нечего');
+  else console.log(`  освобождено ${lib.formatBytes(freed)}${stuck ? `; не удалилось (занято другими программами): ${stuck}` : ''}`);
 }
 
 function schedulePublish(ctx) {

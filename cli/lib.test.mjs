@@ -4,6 +4,7 @@ import {
   assetName,
   cargoName,
   compareVersions,
+  formatBytes,
   latestJson,
   lockVersion,
   nextVersion,
@@ -84,4 +85,10 @@ test('version bumps touch only the right field', () => {
 test('compare versions', () => {
   assert.equal(compareVersions('0.10.0', '0.9.9'), 1);
   assert.equal(compareVersions('1.0.0', '1.0'), 0);
+});
+
+test('format freed bytes', () => {
+  assert.equal(formatBytes(2.04 * 1024 ** 3), '2,0 ГБ');
+  assert.equal(formatBytes(300 * 1024 ** 2), '300 МБ');
+  assert.equal(formatBytes(0), '0 МБ');
 });

@@ -102,3 +102,8 @@ export function lockVersion(text, name) {
 export function stripBom(text) {
   return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
 }
+
+export function formatBytes(bytes) {
+  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1).replace('.', ',')} ГБ`;
+  return `${Math.round(bytes / 1024 ** 2)} МБ`;
+}
